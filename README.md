@@ -1,72 +1,71 @@
-# Demand Generation Insights
+# Lemur Backend
 
-This is a Go application that exposes an API endpoint to generate a PowerPoint presentation based on insights retrieved from an external API. The generated PowerPoint is then uploaded to Google Drive.
-
-## Table of Contents
-
-- [Prerequisites](#prerequisites)
-- [Setup](#setup)
-- [Running the Application](#running-the-application)
-- [Deployment](#deployment)
-- [API Endpoint](#api-endpoint)
-- [License](#license)
+This is a backend application that generates PowerPoint presentations based on given parameters and uploads them to Google Drive. The application is built with Flask and deployed on Google App Engine.
 
 ## Prerequisites
 
-- Go 1.20 or later
-- Docker
+- Python 3.12
 - Google Cloud SDK
-- Google Service Account with Drive API enabled
+- Docker
 
 ## Setup
 
 1. Clone the repository:
-
-2. Install dependencies:
     ```sh
-    go mod download
+    git clone https://github.com/yourusername/lemur_backend.git
+    cd lemur_backend
     ```
 
-3. Place your Google Cloud service account key file in the project root and name it `service-account-key.json`.
-
-4. Set up environment variables:
-    - `DRIVE_FOLDER_ID`: The ID of the Google Drive folder where the generated PowerPoint file will be uploaded.
-
-## Running the Application
-
-1. Run the application locally:
+2. Create and activate a virtual environment:
     ```sh
-    go run main.go
+    python3.12 -m venv venv
+    source venv/bin/activate
     ```
 
-2. The application will be available at `http://localhost:8080`.
+3. Install the dependencies:
+    ```sh
+    pip install -r requirements.txt
+    ```
 
-## Deployment
+## Running Locally
+
+1. Set the environment variables:
+    ```sh
+    export DRIVE_FOLDER_ID=your-google-drive-folder-id
+    export API_ENDPOINT_URL=http://34.90.192.243/deman_gen_insights
+    ```
+
+2. Run the application:
+    ```sh
+    python main.py
+    ```
+
+3. The application will be available at `http://localhost:8080`.
+
+## Building and Running with Docker
 
 1. Build the Docker image:
     ```sh
-    docker build -t gcr.io/YOUR_PROJECT_ID/deman_gen_insights .
+    docker build -t lemur_backend .
     ```
 
-2. Push the Docker image to Google Container Registry:
+2. Run the Docker container:
     ```sh
-    docker push gcr.io/YOUR_PROJECT_ID/deman_gen_insights
+    docker run -e DRIVE_FOLDER_ID=1Zi9ejkrvwAOTlJm4VtEJBydWKHJgN8YF \
+               -e API_ENDPOINT_URL=http://34.90.192.243/deman_gen_insights \
+               -p 8080:8080 lemur_backend
     ```
 
-3. Create an `app.yaml` file in your project directory:
-    ```yaml
-    runtime: custom
-    env: flex
+3. The application will be available at `http://localhost:8080`.
 
-    handlers:
-    - url: /.*
-      script: auto
-    ```
+## Deploying to Google App Engine
 
-4. Deploy to Google App Engine:
+1. Deploy the application:
     ```sh
     gcloud app deploy
     ```
+
+2. The application will be available at `https://your-project-id.appspot.com`.
 
 ## API Endpoint
 

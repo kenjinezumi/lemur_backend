@@ -1,0 +1,7 @@
+runtime: python312
+
+entrypoint: gunicorn -b :$PORT main:app
+
+env_variables:
+  DRIVE_FOLDER_ID: "1Zi9ejkrvwAOTlJm4VtEJBydWKHJgN8YF"
+  API_ENDPOINT_URL: "http://34.90.192.243/deman_gen_insights"

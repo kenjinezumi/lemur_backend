@@ -1,46 +1,112 @@
-# Binaries for programs and plugins
-main
-*.exe
-*.dll
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
 *.so
-*.dylib
 
-# Output of the go coverage tool
-coverage.out
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Project-local glide cache, RE: https://github.com/Masterminds/glide#glide-directory
-.glide/
+# Virtual environment
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
 
-# Log files
+# PyInstaller
+# Usually these files are written by a python script from a template
+# before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
 *.log
+local_settings.py
+db.sqlite3
 
-# Temporary files
-*.tmp
-*.temp
+# Flask stuff:
+instance/
+.webassets-cache
 
-# OS generated files
-.DS_Store
-Thumbs.db
+# Scrapy stuff:
+.scrapy
 
-# Golang dependency files
-vendor/
-Gopkg.lock
-Gopkg.toml
+# Sphinx documentation
+docs/_build/
+site/
 
-# Go modules
-go.sum
+# Jupyter Notebook
+.ipynb_checkpoints
 
-# IDE and editor settings
+# IPython
+profile_default/
+ipython_config.py
+
+# PyCharm
 .idea/
-*.swp
+
+# VS Code
 .vscode/
 
-# Node modules (if using Node for any reason)
-node_modules/
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
 
-# Service account key file
+# Pyre type checker
+.pyre/
+
+# pylint
+pylint_report.txt
+
+# Google Cloud credentials
 service-account-key.json
 
+# Docker
+docker-compose.yml
+Dockerfile
 
-# Ignore binary directory
-/app/main
+# macOS
+.DS_Store
