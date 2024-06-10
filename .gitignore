@@ -1,0 +1,46 @@
+# Binaries for programs and plugins
+main
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Output of the go coverage tool
+coverage.out
+
+# Project-local glide cache, RE: https://github.com/Masterminds/glide#glide-directory
+.glide/
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Golang dependency files
+vendor/
+Gopkg.lock
+Gopkg.toml
+
+# Go modules
+go.sum
+
+# IDE and editor settings
+.idea/
+*.swp
+.vscode/
+
+# Node modules (if using Node for any reason)
+node_modules/
+
+# Service account key file
+service-account-key.json
+
+
+# Ignore binary directory
+/app/main
