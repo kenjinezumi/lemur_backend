@@ -1,6 +1,6 @@
 # Lemur Backend
 
-This is a backend application that generates PowerPoint presentations based on given parameters and uploads them to Google Drive. The application is built with Flask and deployed on Google App Engine.
+This is a backend application that generates PowerPoint presentations based on given parameters and uploads them to Google Drive. The application is built with Flask and deployed on Google Cloud Run.
 
 ## Prerequisites
 
@@ -51,21 +51,32 @@ This is a backend application that generates PowerPoint presentations based on g
 
 2. Run the Docker container:
     ```sh
-    docker run -e DRIVE_FOLDER_ID=1Zi9ejkrvwAOTlJm4VtEJBydWKHJgN8YF \
+    docker run -e DRIVE_FOLDER_ID=your-google-drive-folder-id \
                -e API_ENDPOINT_URL=http://34.90.192.243/deman_gen_insights \
                -p 8080:8080 lemur_backend
     ```
 
 3. The application will be available at `http://localhost:8080`.
 
-## Deploying to Google App Engine
+## Deploying to Google Cloud Run
 
-1. Deploy the application:
+1. Submit a build to Google Cloud Build:
     ```sh
-    gcloud app deploy
+    gcloud builds submit --config cloudbuild.yaml .
     ```
 
-2. The application will be available at `https://your-project-id.appspot.com`.
+2. Deploy the application to Cloud Run:
+    ```sh
+    gcloud run deploy lemur \
+    --image gcr.io/$PROJECT_ID/lemur \
+    --platform managed \
+    --region us-central1 \
+    --allow-unauthenticated \
+    --set-env-vars DRIVE_FOLDER_ID=1Zi9ejkrvwAOTlJm4VtEJBydWKHJgN8YF,API_ENDPOINT_URL=http://34.90.192.243/deman_gen_insights \
+    --min-instances 5
+    ```
+
+3. The application will be available at the URL provided by Cloud Run.
 
 ## API Endpoint
 
