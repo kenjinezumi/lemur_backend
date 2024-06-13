@@ -52,23 +52,42 @@ Ensure the following environment variables are set:
 
     gcloud builds submit --tag gcr.io/$PROJECT_ID/lemur-broker ./lemur-broker
     gcloud builds submit --tag gcr.io/$PROJECT_ID/lemur-generate ./lemur-generate
+    export PROJECT_ID=$(gcloud config get-value project)
+
+    gcloud builds submit --tag gcr.io/$PROJECT_ID/lemur-combined ./lemur-combined
+
+      gcloud run deploy lemur-broker --image=gcr.io/$PROJECT_ID/lemur-broker --platform=managed --region=us-central1 --allow-unauthenticated \
+    --set-env-vars GCP_PROJECT_ID=$PROJECT_ID,DRIVE_FOLDER_ID=1Zi9ejkrvwAOTlJm4VtEJBydWKHJgN8YF,API_ENDPOINT_URL=http://34.90.192.243/deman_gen_insights,PUBSUB_TOPIC=lemur,PUBSUB_RESPONSE_TOPIC=lemur-response,PUBSUB_RESPONSE_SUBSCRIPTION=lemur-response-subscription --timeout=1800
+
+    gcloud run deploy lemur-generate --image=gcr.io/$PROJECT_ID/lemur-generate --platform=managed --region=us-central1 --allow-unauthenticated \
+    --set-env-vars GCP_PROJECT_ID=$PROJECT_ID,DRIVE_FOLDER_ID=1Zi9ejkrvwAOTlJm4VtEJBydWKHJgN8YF,PUBSUB_SUBSCRIPTION=lemur-subscription,PUBSUB_RESPONSE_TOPIC=lemur-response,SLIDES_TEMPLATE_ID=1Va_X2HGXRJSEoUJEPmO-CNqxUEoyxNj49sw_GdQeZa4 --timeout=1800
+
     ```
 
 2. **Deploy to Cloud Run**:
 
     ```sh
     gcloud run deploy lemur-broker --image=gcr.io/$PROJECT_ID/lemur-broker --platform=managed --region=us-central1 --allow-unauthenticated \
-    --set-env-vars GCP_PROJECT_ID=$PROJECT_ID,DRIVE_FOLDER_ID=1Zi9ejkrvwAOTlJm4VtEJBydWKHJgN8YF,API_ENDPOINT_URL=http://34.90.192.243/deman_gen_insights,PUBSUB_TOPIC=lemur,PUBSUB_RESPONSE_TOPIC=lemur-response,PUBSUB_RESPONSE_SUBSCRIPTION=lemur-response-subscription \
-    --timeout=1800
+    --set-env-vars GCP_PROJECT_ID=$PROJECT_ID,DRIVE_FOLDER_ID=1Zi9ejkrvwAOTlJm4VtEJBydWKHJgN8YF,API_ENDPOINT_URL=http://34.90.192.243/deman_gen_insights,PUBSUB_TOPIC=lemur,PUBSUB_RESPONSE_TOPIC=lemur-response,PUBSUB_RESPONSE_SUBSCRIPTION=lemur-response-subscription --timeout=1800
 
     gcloud run deploy lemur-generate --image=gcr.io/$PROJECT_ID/lemur-generate --platform=managed --region=us-central1 --allow-unauthenticated \
-    --set-env-vars GCP_PROJECT_ID=$PROJECT_ID,DRIVE_FOLDER_ID=1Zi9ejkrvwAOTlJm4VtEJBydWKHJgN8YF,PUBSUB_SUBSCRIPTION=lemur-subscription,PUBSUB_RESPONSE_TOPIC=lemur-response,SLIDES_TEMPLATE_ID=1Va_X2HGXRJSEoUJEPmO-CNqxUEoyxNj49sw_GdQeZa4 \
-    --timeout=1800
+    --set-env-vars GCP_PROJECT_ID=$PROJECT_ID,DRIVE_FOLDER_ID=1Zi9ejkrvwAOTlJm4VtEJBydWKHJgN8YF,PUBSUB_SUBSCRIPTION=lemur-subscription,PUBSUB_RESPONSE_TOPIC=lemur-response,SLIDES_TEMPLATE_ID=1Va_X2HGXRJSEoUJEPmO-CNqxUEoyxNj49sw_GdQeZa4 --timeout=1800
     ```
+
+export PROJECT_ID=$(gcloud config get-value project)
+gcloud builds submit --tag gcr.io/$PROJECT_ID/lemur-combined ./lemur-combined
+gcloud run deploy lemur-combined \
+    --image gcr.io/$PROJECT_ID/lemur-combined \
+    --platform managed \
+    --region us-central1 \
+    --allow-unauthenticated \
+    --set-env-vars GCP_PROJECT_ID=algomate-400914,DRIVE_FOLDER_ID=1Zi9ejkrvwAOTlJm4VtEJBydWKHJgN8YF,API_ENDPOINT_URL=http://34.90.192.243/insight_slide,SLIDES_TEMPLATE_ID=1bIJPGE0BgSsfWrwUHPUhe1MgSDQB1rYQ --timeout 3600
+    
 
 ## Usage
 
 To test the service, you can send a request to `lemur-broker` using `curl`:
 
 ```sh
-curl --max-time 600 -X POST "https://lemur-broker-dfrarc6doq-uc.a.run.app/generate" -H "Content-Type: application/json" -d '{"quarter_no": "Q1", "year_no" : 2024, "file_id": "22222"}'
+curl --max-time 600 -X POST "https://lemur-combined-dfrarc6doq-uc.a.run.app/generate" -H "Content-Type: application/json" -d '{"file_id": "22222"}'
+curl --max-time 600 -X POST "http://192.168.0.15:8080/generate" -H "Content-Type: application/json" -d '{"file_id": "22222"}'
