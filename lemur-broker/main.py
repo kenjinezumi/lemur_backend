@@ -1,18 +1,15 @@
 import os
 import logging
-import json
 from flask import Flask, request, jsonify
-from google.cloud import pubsub_v1, logging as cloud_logging
+from google.cloud import pubsub_v1
+from google.auth import default
 
-# Initialize Google Cloud Logging
-client = cloud_logging.Client()
-client.setup_logging()
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Flask app
 app = Flask(__name__)
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 
 # Pub/Sub settings
 PROJECT_ID = os.getenv('GCP_PROJECT_ID')

@@ -1,18 +1,16 @@
 import os
 import logging
 from flask import Flask, request, jsonify
-from google.cloud import pubsub_v1, logging as cloud_logging, storage, drive, slides_v1
+from google.cloud import pubsub_v1,  storage, drive, slides_v1
 from google.oauth2.service_account import Credentials
 
 # Initialize Google Cloud Logging
-client = cloud_logging.Client()
-client.setup_logging()
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Flask app
 app = Flask(__name__)
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 
 # Google Drive and Slides API setup
 SCOPES = ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/presentations']

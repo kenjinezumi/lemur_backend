@@ -1,10 +1,23 @@
+# Use the official Python image
 FROM python:3.12-slim
 
+# Set the working directory
 WORKDIR /app
 
-COPY requirements.txt requirements.txt
+# Copy the requirements file
+COPY requirements.txt .
+
+# Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py main.py
+# Copy the application code
+COPY . .
 
-CMD ["gunicorn", "-b", ":$PORT", "main:app"]
+# Ensure the PORT environment variable is available to the container
+ENV PORT 8080
+
+# Expose the port
+EXPOSE $PORT
+
+# Command to run the application
+CMD exec gunicorn -b :$PORT main:app
