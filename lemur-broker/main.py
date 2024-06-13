@@ -3,6 +3,7 @@ import logging
 from flask import Flask, request, jsonify
 from google.cloud import pubsub_v1
 from google.auth import default
+import json
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
