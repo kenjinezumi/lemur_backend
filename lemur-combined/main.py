@@ -26,6 +26,21 @@ SCOPES = ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/a
 creds, project = default(scopes=SCOPES)
 drive_service = build('drive', 'v3', credentials=creds)
 
+def fetch_slide_data_with_retry(api_url, slide_no, retries=3):
+    attempt = 0
+    while attempt < retries:
+        try:
+            response = requests.post(api_url, json={"slide_no": str(slide_no)}, timeout=3600)
+            logger.info(f"API response status code for slide {slide_no}: {response.status_code}")
+            logger.info(f"API response content for slide {slide_no}: {response.text}")
+            response.raise_for_status()  # Raise an exception for HTTP errors
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Attempt {attempt + 1} failed with error: {e}")
+            attempt += 1
+            time.sleep(2 ** attempt)  # Exponential backoff
+    raise Exception(f"Failed to fetch slide data for slide {slide_no} after several retries")
+
 @app.route('/')
 def index():
     return 'Lemur Service'
@@ -66,6 +81,8 @@ def generate():
               type: object
             presentation_link:
               type: string
+            api_data:
+              type: object
       500:
         description: Error generating presentation
     """
@@ -73,19 +90,15 @@ def generate():
         data = request.get_json()
         logger.info(f"Received request data: {data}")
 
-        slide_numbers = [11, 14, 15, 16, 17]  
+        slide_numbers = [11,14, 15, 16, 17]  
         slide_data = {}
+        api_data = {}
 
         # Fetch slide data for each slide number
         api_url = 'http://34.90.192.243/insight_slide'
         for slide_no in slide_numbers:
-            response = requests.post(api_url, json={"slide_no": str(slide_no)}, timeout=3600)
-            logger.info(f"API response status code for slide {slide_no}: {response.status_code}")
-            logger.info(f"API response content for slide {slide_no}: {response.text}")
-
-            response.raise_for_status()  # Raise an exception for HTTP errors
-
-            slide_data[slide_no] = response.json()
+            slide_data[slide_no] = fetch_slide_data_with_retry(api_url, slide_no)
+            api_data[slide_no] = slide_data[slide_no]
             logger.info(f"Received slide data from API for slide {slide_no}: {slide_data[slide_no]}")
 
         # Generate the presentation
@@ -94,7 +107,8 @@ def generate():
 
         response_data = {
             "original_parameters": data,
-            "presentation_link": presentation_link
+            "presentation_link": presentation_link,
+            "api_data": api_data  # Add API data to response
         }
         return jsonify(response_data), 200
     except requests.exceptions.RequestException as e:
@@ -155,7 +169,7 @@ def upload_to_drive_with_retry(file_metadata, media, retries=3):
             uploaded_file = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
             return uploaded_file
         except Exception as e:
-            logger.error(f"Attempt {attempt+1} failed with error: {e}")
+            logger.error(f"Attempt {attempt + 1} failed with error: {e}")
             attempt += 1
             time.sleep(2 ** attempt)  # Exponential backoff
     raise Exception("Failed to upload file after several retries")
@@ -174,14 +188,17 @@ def set_yoy_color(cell, yoy_value):
     Set the color for the YoY cell based on its value.
     """
     try:
-        yoy = float(yoy_value.strip('%'))
-        if yoy > 100:
-            color = RGBColor(0, 255, 0)  # Green
-        elif 90 <= yoy <= 100:
-            color = RGBColor(218, 165, 32)  # Yellow goldenrod
+        if yoy_value:
+            yoy = float(yoy_value.strip('%'))
+            if yoy > 100:
+                color = RGBColor(0, 255, 0)  # Green
+            elif 90 <= yoy <= 100:
+                color = RGBColor(218, 165, 32)  # Yellow goldenrod
+            else:
+                color = RGBColor(255, 0, 0)  # Red
+            cell.text_frame.paragraphs[0].runs[0].font.color.rgb = color
         else:
-            color = RGBColor(255, 0, 0)  # Red
-        cell.text_frame.paragraphs[0].runs[0].font.color.rgb = color
+            logger.error("Empty YoY value provided.")
     except ValueError:
         logger.error(f"Invalid YoY value: {yoy_value}")
 
@@ -210,7 +227,7 @@ def populate_slide(slide, content, slide_number):
                 metrics = [
                     ("Ent+Corp Pipeline", "QTD", "Attain"),
                     ("SMB Pipeline", "QTD", "Attain"),
-                    ("Total Partner Marketing Sourced", "QTD", "Attain"),
+                    ("Total Partner Marketing Sourced ", "QTD", "Attain"),
                 ]
 
                 gcp_start_row = 3
@@ -234,17 +251,13 @@ def populate_slide(slide, content, slide_number):
 
                 # Ensure YoY values are applied correctly
                 for region in regions:
-                    for metric, _, _, yoy_key in [
-                        ("Ent+Corp Pipeline", "QTD", "Attain", "YoY"),
-                        ("SMB Pipeline", "QTD", "Attain", "YoY"),
-                        ("Total Partner Marketing Sourced", "QTD", "Attain", "YoY")
-                    ]:
-                        yoy_data = content.get("data", {}).get("GCP", {}).get(region, {}).get(metric, {}).get(yoy_key, "")
-                        cell = main_table.cell(gcp_start_row + metrics.index((metric, "QTD", "Attain")), 1 + regions.index(region))
-                        set_yoy_color(cell, yoy_data)
-                        yoy_data = content.get("data", {}).get("GWS", {}).get(region, {}).get(metric, {}).get(yoy_key, "")
-                        cell = main_table.cell(gws_start_row + metrics.index((metric, "QTD", "Attain")), 1 + regions.index(region))
-                        set_yoy_color(cell, yoy_data)
+                    for i, metric in enumerate(metrics):
+                        yoy_data = content.get("data", {}).get("GCP", {}).get(region, {}).get(metric[0], {}).get("YoY", "")
+                        cell = main_table.cell(gcp_start_row + i, 1 + regions.index(region))
+                        # set_yoy_color(cell, yoy_data)
+                        yoy_data = content.get("data", {}).get("GWS", {}).get(region, {}).get(metric[0], {}).get("YoY", "")
+                        cell = main_table.cell(gws_start_row + i, 1 + regions.index(region))
+                        # set_yoy_color(cell, yoy_data)
 
             elif slide_number in [14, 15, 16, 17]:
                 regions = ["NORTHAM", "LATAM", "EMEA", "JAPAC", "PUBLIC SECTOR", "GLOBAL"]
@@ -305,7 +318,7 @@ def populate_slide(slide, content, slide_number):
                         cell = main_table.cell(start_row + i, 2 + (j * 2))
                         cell.text = region_value_yoy
                         set_font(cell)
-                        set_yoy_color(cell, region_value_yoy)
+                        # set_yoy_color(cell, region_value_yoy)
 
                         logger.info(
                             f"Populated {metric} for {region} with QTD+Attain: {region_value_qtd_attain} and YoY: {region_value_yoy}"
@@ -319,8 +332,11 @@ def populate_slide(slide, content, slide_number):
             # Populate insights table
             drivers = content.get("drivers", [])
             insights = content.get("insights", [])
+            logger.info(f'Length of insights is: {len(insights)}')
+            logger.info(f'Length of insight table is: {len(insights_table.rows)}')
+
             for i in range(max(len(drivers), len(insights))):  # Ensure we loop through the longest list
-                if i < len(insights_table.rows) - 1:
+                if i <= len(insights_table.rows):
                     driver_text = drivers[i] if i < len(drivers) else ""
                     insight_text = insights[i] if i < len(insights) else ""
                     
