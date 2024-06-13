@@ -106,7 +106,7 @@ service-account-key.json
 
 # Docker
 docker-compose.yml
-Dockerfile
+
 
 # macOS
 .DS_Store

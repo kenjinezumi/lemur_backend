@@ -27,8 +27,24 @@ Ensure the following environment variables are set:
 
 1. **Build and Push Docker Images**:
 
-    ```sh
-    gcloud builds submit --config cloudbuild.yaml --substitutions _PUBSUB_TOPIC=your-pubsub-topic,_PUBSUB_SUBSCRIPTION=your-pubsub-subscription,_SLIDES_TEMPLATE_ID=your-template-id
+    ```
+    export PROJECT_ID=$(gcloud config get-value project)
+
+    gcloud pubsub topics create lemur
+
+    gcloud pubsub subscriptions create lemur-subscription --topic=lemur
+
+    gcloud builds submit --tag gcr.io/$PROJECT_ID/lemur-broker ./lemur-broker
+    gcloud builds submit --tag gcr.io/$PROJECT_ID/lemur-generate ./lemur-generate
+
+
+    gcloud run deploy lemur-broker --image=gcr.io/$PROJECT_ID/lemur-broker --platform=managed --region=us-central1 --allow-unauthenticated \
+    --set-env-vars DRIVE_FOLDER_ID=1Zi9ejkrvwAOTlJm4VtEJBydWKHJgN8YF,API_ENDPOINT_URL=http://34.90.192.243/deman_gen_insights,PUBSUB_TOPIC=lemur
+
+    gcloud run deploy lemur-generate --image=gcr.io/$PROJECT_ID/lemur-generate --platform=managed --region=us-central1 --allow-unauthenticated \
+    --set-env-vars DRIVE_FOLDER_ID=1Zi9ejkrvwAOTlJm4VtEJBydWKHJgN8YF,API_ENDPOINT_URL=http://34.90.192.243/deman_gen_insights,PUBSUB_SUBSCRIPTION=lemur-subscription,SLIDES_TEMPLATE_ID=1Va_X2HGXRJSEoUJEPmO-CNqxUEoyxNj49sw_GdQeZa4
+
+
     ```
 
 2. **Deploy Services**:
@@ -54,24 +70,3 @@ Ensure the following environment variables are set:
     gunicorn -b :8080 main:app
     ```
 
-### Lemur Generate
-
-1. **Navigate to the directory**:
-
-    ```sh
-    cd lemur-generate
-    ```
-
-2. **Run the service**:
-
-    ```sh
-    export DRIVE_FOLDER_ID=your-google-drive-folder-id
-    export API_ENDPOINT_URL=http://34.90.192.243/deman_gen_insights
-    export PUBSUB_SUBSCRIPTION=your-pubsub-subscription
-    export SLIDES_TEMPLATE_ID=your-template-id
-    gunicorn -b :8080 main:app
-    ```
-
-## License
-
-This project is licensed under the MIT License.
