@@ -17,7 +17,7 @@ COPY . .
 ENV PORT 8080
 
 # Expose the port
-EXPOSE $PORT
+EXPOSE 8080
 
 # Command to run the application
-CMD exec gunicorn -b :$PORT main:app
+ENTRYPOINT ["gunicorn", "--timeout", "1800", "-b", ":8080", "main:app"]

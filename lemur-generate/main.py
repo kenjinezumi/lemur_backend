@@ -1,9 +1,11 @@
 import os
 import logging
 import json
-from flask import Flask, request, jsonify
-from google.cloud import pubsub_v1, drive_v3, slides_v1
-from google.oauth2.service_account import Credentials
+import requests
+from flask import Flask, jsonify
+from google.cloud import pubsub_v1
+from googleapiclient.discovery import build
+import google.auth
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -12,20 +14,20 @@ logger = logging.getLogger(__name__)
 # Flask app
 app = Flask(__name__)
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-
-# Google Drive and Slides API setup
-SCOPES = ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/presentations']
-creds = Credentials.from_service_account_file('service_account.json', scopes=SCOPES)
-drive_service = drive_v3.DriveService(creds)
-slides_service = slides_v1.PresentationService(creds)
+# Google Drive and Slides API setup using ADC
+credentials, project = google.auth.default(scopes=[
+    'https://www.googleapis.com/auth/drive',
+    'https://www.googleapis.com/auth/presentations'
+])
+drive_service = build('drive', 'v3', credentials=credentials)
+slides_service = build('slides', 'v1', credentials=credentials)
 
 # Pub/Sub settings
-PROJECT_ID = os.getenv('GCP_PROJECT_ID')
+PROJECT_ID = os.getenv('GCP_PROJECT_ID', project)
 SUBSCRIPTION_NAME = os.getenv('PUBSUB_SUBSCRIPTION')
 RESPONSE_TOPIC_NAME = os.getenv('PUBSUB_RESPONSE_TOPIC')
-subscriber = pubsub_v1.SubscriberClient()
+API_ENDPOINT_URL = os.getenv('API_ENDPOINT_URL')
+subscriber = pubsub_v1.SubscriberClient(credentials=credentials)
 
 @app.route('/')
 def index():
@@ -39,7 +41,9 @@ def callback(message):
     data = json.loads(message.data.decode('utf-8'))
     logging.info(f"Received message: {data}")
     try:
-        presentation_link = process_message(data)
+        response = requests.post(API_ENDPOINT_URL, json=data)
+        api_data = response.json()
+        presentation_link = process_message(api_data, data)
         response_data = {
             "original_parameters": data,
             "presentation_link": presentation_link
@@ -61,15 +65,13 @@ def subscribe():
             streaming_pull_future.cancel()
             streaming_pull_future.result()
 
-def process_message(data):
+def process_message(api_data, original_data):
     """
     Process the message received from Pub/Sub and generate a presentation.
     """
     try:
-        file_id = data['file_id']
-        slides_data = data['slides']
-        presentation_link = create_presentation(slides_data, file_id)
-        logging.info(f"Presentation created for file ID: {file_id}")
+        presentation_link = create_presentation(api_data, original_data['file_id'])
+        logging.info(f"Presentation created for file ID: {original_data['file_id']}")
         return presentation_link
     except Exception as e:
         logging.error(f"Error processing message: {e}")
@@ -158,7 +160,7 @@ def publish_response(response_data):
     """
     Publish the response data to the response Pub/Sub topic.
     """
-    publisher = pubsub_v1.PublisherClient()
+    publisher = pubsub_v1.PublisherClient(credentials=credentials)
     response_topic_path = publisher.topic_path(PROJECT_ID, RESPONSE_TOPIC_NAME)
     message_data = json.dumps(response_data).encode('utf-8')
     future = publisher.publish(response_topic_path, data=message_data)
