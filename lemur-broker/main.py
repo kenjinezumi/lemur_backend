@@ -3,10 +3,7 @@ import logging
 import json
 from flask import Flask, request, jsonify
 from google.cloud import pubsub_v1
-from google.auth import default
-from concurrent.futures import TimeoutError
 
-# Initialize logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -17,6 +14,7 @@ app = Flask(__name__)
 PROJECT_ID = os.getenv('GCP_PROJECT_ID')
 TOPIC_NAME = os.getenv('PUBSUB_TOPIC')
 RESPONSE_TOPIC_NAME = os.getenv('PUBSUB_RESPONSE_TOPIC')
+SUBSCRIPTION_NAME = os.getenv('PUBSUB_RESPONSE_SUBSCRIPTION')
 publisher = pubsub_v1.PublisherClient()
 subscriber = pubsub_v1.SubscriberClient()
 
@@ -38,39 +36,41 @@ def generate():
         future.result()
         
         logging.info(f"Published message to {TOPIC_NAME}: {data}")
-
-        # Subscribe to response topic
-        subscription_name = f"projects/{PROJECT_ID}/subscriptions/{RESPONSE_TOPIC_NAME}-sub"
-        response = listen_for_response(subscription_name)
         
-        return jsonify(response), 200
+        # Wait for the response from the response topic
+        response_data = wait_for_response(file_id)
+        if response_data:
+            return jsonify(response_data), 200
+        else:
+            return jsonify({"error": "No response received"}), 500
     except Exception as e:
         logging.error(f"Error: {e}")
         return jsonify({"error": str(e)}), 500
 
-def listen_for_response(subscription_name):
+def wait_for_response(file_id):
     """
-    Listen for a response on the specified Pub/Sub subscription.
+    Wait for a response message for the given file_id.
     """
-    response = {}
+    response_data = {}
 
     def callback(message):
-        nonlocal response
-        response = json.loads(message.data.decode('utf-8'))
-        message.ack()
+        nonlocal response_data
+        data = json.loads(message.data.decode('utf-8'))
+        if data['original_parameters']['file_id'] == file_id:
+            response_data = data
+            message.ack()
+            streaming_pull_future.cancel()  # Cancel the streaming pull
 
-    streaming_pull_future = subscriber.subscribe(subscription_name, callback=callback)
-    logging.info(f"Listening for messages on {subscription_name}")
-
-    # Wrap subscriber in a 'with' block to automatically call close() when done.
-    with subscriber:
-        try:
-            # Streaming pull future will exit once the callback has been invoked.
-            streaming_pull_future.result(timeout=60)
-        except TimeoutError:
-            streaming_pull_future.cancel()
+    subscription_path = subscriber.subscription_path(PROJECT_ID, SUBSCRIPTION_NAME)
+    streaming_pull_future = subscriber.subscribe(subscription_path, callback=callback)
     
-    return response
+    try:
+        streaming_pull_future.result(timeout=1800)  # Timeout in seconds
+    except Exception as e:
+        logging.error(f"Error waiting for response: {e}")
+        streaming_pull_future.cancel()
+    
+    return response_data
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)

@@ -1,8 +1,8 @@
 import os
 import logging
 import json
-from flask import Flask
-from google.cloud import pubsub_v1, drive, slides_v1
+from flask import Flask, request, jsonify
+from google.cloud import pubsub_v1, drive_v3, slides_v1
 from google.oauth2.service_account import Credentials
 
 # Initialize logging
@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.INFO)
 # Google Drive and Slides API setup
 SCOPES = ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/presentations']
 creds = Credentials.from_service_account_file('service_account.json', scopes=SCOPES)
-drive_service = drive.DriveService(creds)
+drive_service = drive_v3.DriveService(creds)
 slides_service = slides_v1.PresentationService(creds)
 
 # Pub/Sub settings
@@ -26,22 +26,40 @@ PROJECT_ID = os.getenv('GCP_PROJECT_ID')
 SUBSCRIPTION_NAME = os.getenv('PUBSUB_SUBSCRIPTION')
 RESPONSE_TOPIC_NAME = os.getenv('PUBSUB_RESPONSE_TOPIC')
 subscriber = pubsub_v1.SubscriberClient()
-publisher = pubsub_v1.PublisherClient()
+
+@app.route('/')
+def index():
+    return 'Lemur Generate Service'
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({"status": "healthy"}), 200
 
 def callback(message):
     data = json.loads(message.data.decode('utf-8'))
     logging.info(f"Received message: {data}")
-    presentation_link = process_message(data)
+    try:
+        presentation_link = process_message(data)
+        response_data = {
+            "original_parameters": data,
+            "presentation_link": presentation_link
+        }
+        publish_response(response_data)
+    except Exception as e:
+        logging.error(f"Error processing message: {e}")
     message.ack()
-    response_data = {
-        "original_parameters": data,
-        "presentation_link": presentation_link
-    }
-    logging.info(f"Response data: {response_data}")
-    publish_response(response_data)
 
-subscription_path = subscriber.subscription_path(PROJECT_ID, SUBSCRIPTION_NAME)
-streaming_pull_future = subscriber.subscribe(subscription_path, callback=callback)
+def subscribe():
+    subscription_path = subscriber.subscription_path(PROJECT_ID, SUBSCRIPTION_NAME)
+    streaming_pull_future = subscriber.subscribe(subscription_path, callback=callback)
+    logging.info("Listening for messages on %s", subscription_path)
+    with subscriber:
+        try:
+            streaming_pull_future.result()
+        except Exception as e:
+            logging.error(f"Listening for messages on {subscription_path} threw an exception: {e}")
+            streaming_pull_future.cancel()
+            streaming_pull_future.result()
 
 def process_message(data):
     """
@@ -138,20 +156,15 @@ def populate_slide(presentation_id, slide_id, content):
 
 def publish_response(response_data):
     """
-    Publish the response data to the response topic.
+    Publish the response data to the response Pub/Sub topic.
     """
-    try:
-        topic_path = publisher.topic_path(PROJECT_ID, RESPONSE_TOPIC_NAME)
-        message_data = json.dumps(response_data).encode('utf-8')
-        future = publisher.publish(topic_path, data=message_data)
-        future.result()
-        logging.info(f"Published response to {RESPONSE_TOPIC_NAME}: {response_data}")
-    except Exception as e:
-        logging.error(f"Error publishing response: {e}")
-
-@app.route('/')
-def index():
-    return 'Lemur Generate Service'
+    publisher = pubsub_v1.PublisherClient()
+    response_topic_path = publisher.topic_path(PROJECT_ID, RESPONSE_TOPIC_NAME)
+    message_data = json.dumps(response_data).encode('utf-8')
+    future = publisher.publish(response_topic_path, data=message_data)
+    future.result()
+    logging.info(f"Published response message to {RESPONSE_TOPIC_NAME}: {response_data}")
 
 if __name__ == '__main__':
+    subscribe()
     app.run(host='0.0.0.0', port=8080)
