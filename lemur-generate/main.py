@@ -1,17 +1,19 @@
 import os
 import logging
-from flask import Flask, request, jsonify
-from google.cloud import pubsub_v1,  storage, drive, slides_v1
-from google.oauth2.service_account import Credentials
 import json
+from flask import Flask
+from google.cloud import pubsub_v1, drive, slides_v1
+from google.oauth2.service_account import Credentials
 
-# Initialize Google Cloud Logging
+# Initialize logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Flask app
 app = Flask(__name__)
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
 # Google Drive and Slides API setup
 SCOPES = ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/presentations']
@@ -22,13 +24,21 @@ slides_service = slides_v1.PresentationService(creds)
 # Pub/Sub settings
 PROJECT_ID = os.getenv('GCP_PROJECT_ID')
 SUBSCRIPTION_NAME = os.getenv('PUBSUB_SUBSCRIPTION')
+RESPONSE_TOPIC_NAME = os.getenv('PUBSUB_RESPONSE_TOPIC')
 subscriber = pubsub_v1.SubscriberClient()
+publisher = pubsub_v1.PublisherClient()
 
 def callback(message):
     data = json.loads(message.data.decode('utf-8'))
     logging.info(f"Received message: {data}")
-    process_message(data)
+    presentation_link = process_message(data)
     message.ack()
+    response_data = {
+        "original_parameters": data,
+        "presentation_link": presentation_link
+    }
+    logging.info(f"Response data: {response_data}")
+    publish_response(response_data)
 
 subscription_path = subscriber.subscription_path(PROJECT_ID, SUBSCRIPTION_NAME)
 streaming_pull_future = subscriber.subscribe(subscription_path, callback=callback)
@@ -40,10 +50,12 @@ def process_message(data):
     try:
         file_id = data['file_id']
         slides_data = data['slides']
-        create_presentation(slides_data, file_id)
+        presentation_link = create_presentation(slides_data, file_id)
         logging.info(f"Presentation created for file ID: {file_id}")
+        return presentation_link
     except Exception as e:
         logging.error(f"Error processing message: {e}")
+        return None
 
 def create_presentation(data, file_id):
     """
@@ -123,6 +135,19 @@ def populate_slide(presentation_id, slide_id, content):
         logging.info(f"Slide {slide_id} populated with content: {content}")
     except Exception as e:
         logging.error(f"Error populating slide {slide_id}: {e}")
+
+def publish_response(response_data):
+    """
+    Publish the response data to the response topic.
+    """
+    try:
+        topic_path = publisher.topic_path(PROJECT_ID, RESPONSE_TOPIC_NAME)
+        message_data = json.dumps(response_data).encode('utf-8')
+        future = publisher.publish(topic_path, data=message_data)
+        future.result()
+        logging.info(f"Published response to {RESPONSE_TOPIC_NAME}: {response_data}")
+    except Exception as e:
+        logging.error(f"Error publishing response: {e}")
 
 @app.route('/')
 def index():

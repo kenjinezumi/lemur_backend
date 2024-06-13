@@ -36,13 +36,12 @@ Ensure the following environment variables are set:
 
     gcloud builds submit --tag gcr.io/$PROJECT_ID/lemur-broker ./lemur-broker
     gcloud run deploy lemur-broker --image=gcr.io/$PROJECT_ID/lemur-broker --platform=managed --region=us-central1 --allow-unauthenticated \
-    --set-env-vars DRIVE_FOLDER_ID=1Zi9ejkrvwAOTlJm4VtEJBydWKHJgN8YF,API_ENDPOINT_URL=http://34.90.192.243/deman_gen_insights,PUBSUB_TOPIC=lemur
+    --set-env-vars GCP_PROJECT_ID=algomate-400914,DRIVE_FOLDER_ID=1Zi9ejkrvwAOTlJm4VtEJBydWKHJgN8YF,API_ENDPOINT_URL=http://34.90.192.243/deman_gen_insights,PUBSUB_TOPIC=lemur
 
 
     gcloud builds submit --tag gcr.io/$PROJECT_ID/lemur-generate ./lemur-generate
- 
     gcloud run deploy lemur-generate --image=gcr.io/$PROJECT_ID/lemur-generate --platform=managed --region=us-central1 --allow-unauthenticated \
-    --set-env-vars DRIVE_FOLDER_ID=1Zi9ejkrvwAOTlJm4VtEJBydWKHJgN8YF,API_ENDPOINT_URL=http://34.90.192.243/deman_gen_insights,PUBSUB_SUBSCRIPTION=lemur-subscription,SLIDES_TEMPLATE_ID=1Va_X2HGXRJSEoUJEPmO-CNqxUEoyxNj49sw_GdQeZa4
+    --set-env-vars GCP_PROJECT_ID=algomate-400914,DRIVE_FOLDER_ID=1Zi9ejkrvwAOTlJm4VtEJBydWKHJgN8YF,API_ENDPOINT_URL=http://34.90.192.243/deman_gen_insights,PUBSUB_SUBSCRIPTION=lemur-subscription,SLIDES_TEMPLATE_ID=1Va_X2HGXRJSEoUJEPmO-CNqxUEoyxNj49sw_GdQeZa4
 
 
     ```
