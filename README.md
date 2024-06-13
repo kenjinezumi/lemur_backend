@@ -1,96 +1,77 @@
 # Lemur Backend
 
-This is a backend application that generates PowerPoint presentations based on given parameters and uploads them to Google Drive. The application is built with Flask and deployed on Google Cloud Run.
+## Overview
 
-## Prerequisites
+This project consists of two Google Cloud Run services: `lemur-broker` and `lemur-generate`. These services work together to process requests to generate Google Slides presentations based on provided data.
 
-- Python 3.12
-- Google Cloud SDK
-- Docker
+- `lemur-broker`: Receives requests from the frontend, publishes them to a Pub/Sub topic.
+- `lemur-generate`: Subscribes to the Pub/Sub topic, processes the messages, and generates Google Slides presentations.
 
-## Setup
+## Architecture
 
-1. Clone the repository:
+1. **Frontend** sends a request to `lemur-broker`.
+2. **Lemur Broker** publishes the request to a **Pub/Sub** topic.
+3. **Lemur Generate** subscribes to the Pub/Sub topic, processes the message, and generates a Google Slides presentation.
+
+## Environment Variables
+
+Ensure the following environment variables are set:
+
+- `DRIVE_FOLDER_ID`: Google Drive folder ID where presentations are saved.
+- `API_ENDPOINT_URL`: URL of the API endpoint to fetch data.
+- `PUBSUB_TOPIC`: Pub/Sub topic name.
+- `PUBSUB_SUBSCRIPTION`: Pub/Sub subscription name.
+- `SLIDES_TEMPLATE_ID`: Google Slides template ID.
+
+## Deployment
+
+1. **Build and Push Docker Images**:
+
     ```sh
-    git clone https://github.com/yourusername/lemur_backend.git
-    cd lemur_backend
+    gcloud builds submit --config cloudbuild.yaml --substitutions _PUBSUB_TOPIC=your-pubsub-topic,_PUBSUB_SUBSCRIPTION=your-pubsub-subscription,_SLIDES_TEMPLATE_ID=your-template-id
     ```
 
-2. Create and activate a virtual environment:
+2. **Deploy Services**:
+
+    The deployment steps are included in the `cloudbuild.yaml` file, which automatically deploys the services after building and pushing the Docker images.
+
+## Local Development
+
+### Lemur Broker
+
+1. **Navigate to the directory**:
+
     ```sh
-    python3.12 -m venv venv
-    source venv/bin/activate
+    cd lemur-broker
     ```
 
-3. Install the dependencies:
-    ```sh
-    pip install -r requirements.txt
-    ```
+2. **Run the service**:
 
-## Running Locally
-
-1. Set the environment variables:
     ```sh
     export DRIVE_FOLDER_ID=your-google-drive-folder-id
     export API_ENDPOINT_URL=http://34.90.192.243/deman_gen_insights
+    export PUBSUB_TOPIC=your-pubsub-topic
+    gunicorn -b :8080 main:app
     ```
 
-2. Run the application:
+### Lemur Generate
+
+1. **Navigate to the directory**:
+
     ```sh
-    python main.py
+    cd lemur-generate
     ```
 
-3. The application will be available at `http://localhost:8080`.
+2. **Run the service**:
 
-## Building and Running with Docker
-
-1. Build the Docker image:
     ```sh
-    docker build -t lemur_backend .
+    export DRIVE_FOLDER_ID=your-google-drive-folder-id
+    export API_ENDPOINT_URL=http://34.90.192.243/deman_gen_insights
+    export PUBSUB_SUBSCRIPTION=your-pubsub-subscription
+    export SLIDES_TEMPLATE_ID=your-template-id
+    gunicorn -b :8080 main:app
     ```
 
-2. Run the Docker container:
-    ```sh
-    docker run -e DRIVE_FOLDER_ID=your-google-drive-folder-id \
-               -e API_ENDPOINT_URL=http://34.90.192.243/deman_gen_insights \
-               -p 8080:8080 lemur_backend
-    ```
+## License
 
-3. The application will be available at `http://localhost:8080`.
-
-## Deploying to Google Cloud Run
-
-1. Submit a build to Google Cloud Build:
-    ```sh
-    gcloud builds submit --config cloudbuild.yaml .
-    ```
-
-2. Deploy the application to Cloud Run:
-    ```sh
-    gcloud run deploy lemur \
-    --image gcr.io/$PROJECT_ID/lemur \
-    --platform managed \
-    --region us-central1 \
-    --allow-unauthenticated \
-    --set-env-vars DRIVE_FOLDER_ID=1Zi9ejkrvwAOTlJm4VtEJBydWKHJgN8YF,API_ENDPOINT_URL=http://34.90.192.243/deman_gen_insights \
-    --min-instances 5
-    ```
-
-3. The application will be available at the URL provided by Cloud Run.
-
-## API Endpoint
-
-### Generate PowerPoint
-
-- **URL:** `/generate`
-- **Method:** `POST`
-- **Content-Type:** `application/json`
-
-#### Request Payload
-
-```json
-{
-  "quarter_no": "Q1",
-  "year_no": "2024",
-  "file_id": "your-file-id"
-}
+This project is licensed under the MIT License.
