@@ -103,7 +103,7 @@ def generate():
         data = request.get_json()
         logger.info(f"Received request data: {data}")
 
-        slide_numbers = [11, 14, 15, 16, 17]
+        slide_numbers = [11, 14, 15, 16, 17, 23]
         slide_data = {}
         api_data = {}
 
@@ -242,10 +242,11 @@ def populate_slide(slide, content, slide_number):
 
         for shape in slide.shapes:
             if shape.has_table:
-                if table_count == 0:
-                    main_table = shape.table
-                elif table_count == 1:
-                    insights_table = shape.table
+                table = shape.table
+                if len(table.rows) <= 4:
+                    insights_table = table
+                else:
+                    main_table = table
                 table_count += 1
 
         if main_table:
@@ -388,6 +389,42 @@ def populate_slide(slide, content, slide_number):
                             f"Populated {metric} for {region} with QTD+Attain: {region_value_qtd_attain} and YoY: {region_value_yoy}"
                         )
 
+            elif slide_number == 23:
+                regions = ["NORTHAM", "GLOBAL", "LATAM", "EMEA", "APAC", "JAPAN", "PUBLIC SECTOR", "TOTAL"]
+                metrics = [
+                    ("Ticket Volume", "Q1", "Chg", "YTD"),
+                    ("SLA Adherence", "Q1", "Chg", "YTD"),
+                    ("Marketer Satisfaction", "Q1", "Chg", "YTD")
+                ]
+
+                start_row = 2
+
+                for i, (metric, q1_key, chg_key, ytd_key) in enumerate(metrics):
+                    for j, region in enumerate(regions):
+                        region_data = content.get("data", {}).get(region, {}).get(metric, {})
+                        q1_value = region_data.get(q1_key, "")
+                        chg_value = region_data.get(chg_key, "")
+                        ytd_value = region_data.get(ytd_key, "") if region == "TOTAL" else ""
+
+                        # Q1
+                        cell = main_table.cell(start_row + i, 1 + (j * 2))
+                        cell.text = q1_value
+                        set_font(cell)
+
+                        # Chg
+                        cell = main_table.cell(start_row + i, 2 + (j * 2))
+                        cell.text = chg_value
+                        set_font(cell)
+
+                        # YTD (only for TOTAL column)
+                        if region == "TOTAL":
+                            cell = main_table.cell(start_row + i, 3 + (j * 2))
+                            cell.text = ytd_value
+                            set_font(cell)
+
+                        logger.info(
+                            f"Populated {metric} for {region} with Q1: {q1_value}, Chg: {chg_value}, and YTD: {ytd_value}")
+
         if insights_table:
             logger.info(
                 f"Insights table dimensions: {len(insights_table.rows)} rows x {len(insights_table.columns)} columns"
@@ -402,7 +439,7 @@ def populate_slide(slide, content, slide_number):
             for i in range(
                 max(len(drivers), len(insights))
             ):  # Ensure we loop through the longest list
-                if i <= len(insights_table.rows):
+                if i < len(insights_table.rows):
                     driver_text = drivers[i] if i < len(drivers) else ""
                     insight_text = insights[i] if i < len(insights) else ""
 
