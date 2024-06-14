@@ -22,30 +22,42 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Google Drive API setup
-SCOPES = ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/presentations']
+SCOPES = [
+    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/presentations",
+]
 creds, project = default(scopes=SCOPES)
-drive_service = build('drive', 'v3', credentials=creds)
+drive_service = build("drive", "v3", credentials=creds)
+
 
 def fetch_slide_data_with_retry(api_url, slide_no, retries=3):
     attempt = 0
     while attempt < retries:
         try:
-            response = requests.post(api_url, json={"slide_no": str(slide_no)}, timeout=3600)
-            logger.info(f"API response status code for slide {slide_no}: {response.status_code}")
+            response = requests.post(
+                api_url, json={"slide_no": str(slide_no)}, timeout=3600
+            )
+            logger.info(
+                f"API response status code for slide {slide_no}: {response.status_code}"
+            )
             logger.info(f"API response content for slide {slide_no}: {response.text}")
             response.raise_for_status()  # Raise an exception for HTTP errors
             return response.json()
         except requests.exceptions.RequestException as e:
             logger.error(f"Attempt {attempt + 1} failed with error: {e}")
             attempt += 1
-            time.sleep(2 ** attempt)  # Exponential backoff
-    raise Exception(f"Failed to fetch slide data for slide {slide_no} after several retries")
+            time.sleep(2**attempt)  # Exponential backoff
+    raise Exception(
+        f"Failed to fetch slide data for slide {slide_no} after several retries"
+    )
 
-@app.route('/')
+
+@app.route("/")
 def index():
-    return 'Lemur Service'
+    return "Lemur Service"
 
-@app.route('/health', methods=['GET'])
+
+@app.route("/health", methods=["GET"])
 def health_check():
     """
     Health check endpoint.
@@ -56,7 +68,8 @@ def health_check():
     """
     return jsonify({"status": "healthy"}), 200
 
-@app.route('/generate', methods=['POST'])
+
+@app.route("/generate", methods=["POST"])
 def generate():
     """
     Endpoint to generate a presentation.
@@ -90,25 +103,27 @@ def generate():
         data = request.get_json()
         logger.info(f"Received request data: {data}")
 
-        slide_numbers = [11,14, 15, 16, 17]  
+        slide_numbers = [11, 14, 15, 16, 17]
         slide_data = {}
         api_data = {}
 
         # Fetch slide data for each slide number
-        api_url = 'http://34.90.192.243/insight_slide'
+        api_url = "http://34.90.192.243/insight_slide"
         for slide_no in slide_numbers:
             slide_data[slide_no] = fetch_slide_data_with_retry(api_url, slide_no)
             api_data[slide_no] = slide_data[slide_no]
-            logger.info(f"Received slide data from API for slide {slide_no}: {slide_data[slide_no]}")
+            logger.info(
+                f"Received slide data from API for slide {slide_no}: {slide_data[slide_no]}"
+            )
 
         # Generate the presentation
-        presentation_link = create_presentation(slide_data, data['file_id'])
+        presentation_link = create_presentation(slide_data, data["file_id"])
         logger.info(f"Generated presentation link: {presentation_link}")
 
         response_data = {
             "original_parameters": data,
             "presentation_link": presentation_link,
-            "api_data": api_data  # Add API data to response
+            "api_data": api_data,  # Add API data to response
         }
         return jsonify(response_data), 200
     except requests.exceptions.RequestException as e:
@@ -118,42 +133,48 @@ def generate():
         logger.error(f"Error generating presentation: {e}")
         return jsonify({"error": str(e)}), 500
 
+
 def create_presentation(data, file_id):
     """
     Create a presentation and populate it with data.
     """
     try:
         # Load the template presentation
-        template_path = 'template.pptx'
+        template_path = "template.pptx"
         prs = Presentation(template_path)
-        
+
         # Populate the presentation with data
         for slide_no, content in data.items():
             if slide_no - 1 < len(prs.slides):
-                slide = prs.slides[slide_no - 1]  # Adjust index since slides are 0-indexed
+                slide = prs.slides[
+                    slide_no - 1
+                ]  # Adjust index since slides are 0-indexed
                 populate_slide(slide, content, slide_no)
             else:
-                logger.error(f"Slide number {slide_no} is out of range for the presentation")
+                logger.error(
+                    f"Slide number {slide_no} is out of range for the presentation"
+                )
 
         # Save the modified presentation
-        output_path = f'/tmp/{file_id}.pptx'
+        output_path = f"/tmp/{file_id}.pptx"
         prs.save(output_path)
-        
+
         # Upload the presentation to Google Drive
-        file_metadata = {
-            'name': f'Generated Presentation {file_id}'
-        }
-        media = MediaFileUpload(output_path, mimetype='application/vnd.openxmlformats-officedocument.presentationml.presentation')
+        file_metadata = {"name": f"Generated Presentation {file_id}"}
+        media = MediaFileUpload(
+            output_path,
+            mimetype="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        )
         uploaded_file = upload_to_drive_with_retry(file_metadata, media)
         logger.info(f"Uploaded presentation with ID: {uploaded_file.get('id')}")
 
         # Set file permissions to make it accessible by anyone with the link
         permission = {
-            'type': 'anyone',
-            'role': 'reader',
+            "type": "anyone",
+            "role": "reader",
         }
         drive_service.permissions().create(
-            fileId=uploaded_file['id'],
+            fileId=uploaded_file["id"],
             body=permission,
         ).execute()
 
@@ -162,17 +183,23 @@ def create_presentation(data, file_id):
         logger.error(f"Error creating presentation: {e}")
         raise e  # Re-raise the exception after logging it
 
+
 def upload_to_drive_with_retry(file_metadata, media, retries=3):
     attempt = 0
     while attempt < retries:
         try:
-            uploaded_file = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+            uploaded_file = (
+                drive_service.files()
+                .create(body=file_metadata, media_body=media, fields="id")
+                .execute()
+            )
             return uploaded_file
         except Exception as e:
             logger.error(f"Attempt {attempt + 1} failed with error: {e}")
             attempt += 1
-            time.sleep(2 ** attempt)  # Exponential backoff
+            time.sleep(2**attempt)  # Exponential backoff
     raise Exception("Failed to upload file after several retries")
+
 
 def set_font(cell, font_name="Arial", font_size=8):
     """
@@ -183,13 +210,14 @@ def set_font(cell, font_name="Arial", font_size=8):
             run.font.name = font_name
             run.font.size = Pt(font_size)
 
+
 def set_yoy_color(cell, yoy_value):
     """
     Set the color for the YoY cell based on its value.
     """
     try:
         if yoy_value:
-            yoy = float(yoy_value.strip('%'))
+            yoy = float(yoy_value.strip("%"))
             if yoy > 100:
                 color = RGBColor(0, 255, 0)  # Green
             elif 90 <= yoy <= 100:
@@ -201,6 +229,7 @@ def set_yoy_color(cell, yoy_value):
             logger.error("Empty YoY value provided.")
     except ValueError:
         logger.error(f"Invalid YoY value: {yoy_value}")
+
 
 def populate_slide(slide, content, slide_number):
     """
@@ -220,7 +249,9 @@ def populate_slide(slide, content, slide_number):
                 table_count += 1
 
         if main_table:
-            logger.info(f"Main table dimensions: {len(main_table.rows)} rows x {len(main_table.columns)} columns")
+            logger.info(
+                f"Main table dimensions: {len(main_table.rows)} rows x {len(main_table.columns)} columns"
+            )
 
             if slide_number == 11:
                 regions = ["NORTHAM", "EMEA", "JAPAC", "LATAM", "TOTAL"]
@@ -235,32 +266,63 @@ def populate_slide(slide, content, slide_number):
 
                 for i, (metric, qtd_key, attain_key) in enumerate(metrics):
                     for j, region in enumerate(regions):
-                        gcp_data = content.get("data", {}).get("GCP", {}).get(region, {}).get(metric, {})
+                        gcp_data = content.get("data", {}).get("GCP", {}).get(region, {})
+                        if isinstance(gcp_data, dict):
+                            gcp_data = gcp_data.get(metric, {})
+                        gws_data = content.get("data", {}).get("GWS", {}).get(region, {})
+                        if isinstance(gws_data, dict):
+                            gws_data = gws_data.get(metric, {})
+
                         gcp_value = f"${gcp_data.get(qtd_key, '')} ({gcp_data.get(attain_key, '')})"
                         cell = main_table.cell(gcp_start_row + i, 1 + j)
                         cell.text = gcp_value if gcp_value.strip() != "()" else ""
                         set_font(cell)
-                        logger.info(f"Populated GCP {metric} for {region} with {gcp_value}")
-
-                        gws_data = content.get("data", {}).get("GWS", {}).get(region, {}).get(metric, {})
+                        logger.info(
+                            f"Populated GCP {metric} for {region} with {gcp_value}"
+                        )
                         gws_value = f"${gws_data.get(qtd_key, '')} ({gws_data.get(attain_key, '')})"
                         cell = main_table.cell(gws_start_row + i, 1 + j)
                         cell.text = gws_value if gws_value.strip() != "()" else ""
                         set_font(cell)
-                        logger.info(f"Populated GWS {metric} for {region} with {gws_value}")
+                        logger.info(
+                            f"Populated GWS {metric} for {region} with {gws_value}"
+                        )
 
                 # Ensure YoY values are applied correctly
                 for region in regions:
                     for i, metric in enumerate(metrics):
-                        yoy_data = content.get("data", {}).get("GCP", {}).get(region, {}).get(metric[0], {}).get("YoY", "")
-                        cell = main_table.cell(gcp_start_row + i, 1 + regions.index(region))
+                        yoy_data = (
+                            content.get("data", {})
+                            .get("GCP", {})
+                            .get(region, {})
+                            .get(metric[0], {})
+                            .get("YoY", "")
+                        )
+                        cell = main_table.cell(
+                            gcp_start_row + i, 1 + regions.index(region)
+                        )
                         # set_yoy_color(cell, yoy_data)
-                        yoy_data = content.get("data", {}).get("GWS", {}).get(region, {}).get(metric[0], {}).get("YoY", "")
-                        cell = main_table.cell(gws_start_row + i, 1 + regions.index(region))
+                        yoy_data = (
+                            content.get("data", {})
+                            .get("GWS", {})
+                            .get(region, {})
+                            .get(metric[0], {})
+                            .get("YoY", "")
+                        )
+                        cell = main_table.cell(
+                            gws_start_row + i, 1 + regions.index(region)
+                        )
                         # set_yoy_color(cell, yoy_data)
 
             elif slide_number in [14, 15, 16, 17]:
-                regions = ["NORTHAM", "LATAM", "EMEA", "JAPAC", "PUBLIC SECTOR", "GLOBAL"]
+                regions = [
+                    "NORTHAM",
+                    "LATAM",
+                    "EMEA",
+                    "JAPAC",
+                    "PUBLIC SECTOR",
+                    "GLOBAL",
+                ]
 
                 if slide_number == 14:
                     metrics = [
@@ -305,8 +367,10 @@ def populate_slide(slide, content, slide_number):
                             .get(metric, {"QTD": "", "Attain": "", "YoY": ""})
                         )
                         region_value_qtd_attain = (
-                            f"${region_data[qtd_key]} ({region_data[attain_key]})"
-                        ) if region_data[qtd_key] or region_data[attain_key] else ""
+                            (f"${region_data[qtd_key]} ({region_data[attain_key]})")
+                            if region_data[qtd_key] or region_data[attain_key]
+                            else ""
+                        )
                         region_value_yoy = region_data[yoy_key]
 
                         # QTD and Attain
@@ -332,14 +396,16 @@ def populate_slide(slide, content, slide_number):
             # Populate insights table
             drivers = content.get("drivers", [])
             insights = content.get("insights", [])
-            logger.info(f'Length of insights is: {len(insights)}')
-            logger.info(f'Length of insight table is: {len(insights_table.rows)}')
+            logger.info(f"Length of insights is: {len(insights)}")
+            logger.info(f"Length of insight table is: {len(insights_table.rows)}")
 
-            for i in range(max(len(drivers), len(insights))):  # Ensure we loop through the longest list
+            for i in range(
+                max(len(drivers), len(insights))
+            ):  # Ensure we loop through the longest list
                 if i <= len(insights_table.rows):
                     driver_text = drivers[i] if i < len(drivers) else ""
                     insight_text = insights[i] if i < len(insights) else ""
-                    
+
                     cell = insights_table.cell(i, 0)
                     set_font(cell)
 
@@ -349,15 +415,17 @@ def populate_slide(slide, content, slide_number):
                     run.text = driver_text
                     run.font.bold = True
                     run.font.size = Pt(8)
-                    run.font.name = 'Arial'
+                    run.font.name = "Arial"
                     run = paragraph.add_run()
                     run.text = f" {insight_text}"
                     run.font.size = Pt(8)
-                    run.font.name = 'Arial'
-                    logger.info(f'Populated insight {i + 1}: {driver_text} {insight_text}')
+                    run.font.name = "Arial"
+                    logger.info(
+                        f"Populated insight {i + 1}: {driver_text} {insight_text}"
+                    )
 
             recommendations = content.get("recommendations", [])
-            recommendations = [re.sub(r'\*\*', '', rec) for rec in recommendations]
+            recommendations = [re.sub(r"\*\*", "", rec) for rec in recommendations]
             footnote_text = " ".join(recommendations)
             notes_slide = slide.notes_slide
             text_frame = notes_slide.notes_text_frame
@@ -367,5 +435,6 @@ def populate_slide(slide, content, slide_number):
         logger.error(f"Error populating slide: {e}")
         raise e  # Re-raise the exception after logging it
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8080)
