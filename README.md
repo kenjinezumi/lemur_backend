@@ -1,74 +1,65 @@
-# Lemur Backend
+# Lemur Service
 
 ## Overview
+Lemur Service is a Flask application designed to generate presentations based on data fetched from a specified API. It integrates with Google Drive for storing and sharing the generated presentations. The service exposes endpoints for health checks and generating presentations, leveraging Google APIs and various Python libraries for its functionality.
 
-This project consists of two Google Cloud Run services: `lemur-broker` and `lemur-generate`. These services work together to process requests to generate Google Slides presentations based on provided data.
+## Features
+- **Health Check Endpoint**: Ensures the service is running correctly.
+- **Presentation Generation**: Creates a presentation by fetching data from an API, processing the data, and populating a PowerPoint template.
+- **Google Drive Integration**: Uploads the generated presentation to Google Drive and sets appropriate permissions.
 
-- `lemur-broker`: Receives requests from the frontend, publishes them to a Pub/Sub topic.
-- `lemur-generate`: Subscribes to the Pub/Sub topic, processes the messages, and generates Google Slides presentations. The result is published back to a response Pub/Sub topic.
-- `lemur-broker`: Listens to the response Pub/Sub topic and sends the response back to the frontend.
+## Requirements
+- Python 3.7+
+- Flask
+- flasgger
+- google-auth
+- google-api-python-client
+- python-pptx
+- requests
 
-## Architecture
+## Local development
 
-1. **Frontend** sends a request to `lemur-broker`.
-2. **Lemur Broker** publishes the request to a **Pub/Sub** topic.
-3. **Lemur Generate** subscribes to the Pub/Sub topic, processes the message, and generates a Google Slides presentation. The result is published back to a response Pub/Sub topic.
-4. **Lemur Broker** listens to the response Pub/Sub topic and sends the response back to the frontend.
+- Install the required Python packages:
 
-## Environment Variables
+```shell
+pip install -r requirements.txt
+```
 
-Ensure the following environment variables are set:
+- Configuration
 
-- `DRIVE_FOLDER_ID`: Google Drive folder ID where presentations are saved.
-- `API_ENDPOINT_URL`: URL of the API endpoint to fetch data.
-- `PUBSUB_TOPIC`: Pub/Sub topic name.
-- `PUBSUB_SUBSCRIPTION`: Pub/Sub subscription name.
-- `PUBSUB_RESPONSE_TOPIC`: Pub/Sub response topic name.
-- `PUBSUB_RESPONSE_SUBSCRIPTION`: Pub/Sub response subscription name.
-- `SLIDES_TEMPLATE_ID`: Google Slides template ID.
-- `GCP_PROJECT_ID`: Your Google Cloud Project ID.
+Configure your environment variables in the deployment command to include:
+
+- GCP_PROJECT_ID: Your Google Cloud project ID.
+- DRIVE_FOLDER_ID: The ID of the Google Drive folder where presentations will be uploaded.
+- API_ENDPOINT_URL: The URL of the API to fetch slide data from.
 
 ## Deployment
+- Set your Google Cloud project ID:
 
-### Create Pub/Sub Topics and Subscriptions
+```shell 
+export PROJECT_ID=$(gcloud config get-value project)
+```
 
-1. **Create Pub/Sub Topic and Subscription**:
+- Build the docker image
 
-    ```sh
-    export PROJECT_ID=$(gcloud config get-value project)
+```shell
+gcloud builds submit --tag gcr.io/$PROJECT_ID/lemur-combined ./lemur-combined
+```
 
-    gcloud pubsub topics create lemur
-    gcloud pubsub topics create lemur-response
+- Deploy to Google Cloud Run
 
-    gcloud pubsub subscriptions create lemur-subscription --topic=lemur
-    gcloud pubsub subscriptions create lemur-response-subscription --topic=lemur-response
-    ```
+```shell
+gcloud run deploy lemur-combined \
+    --image gcr.io/$PROJECT_ID/lemur-combined \
+    --platform managed \
+    --region us-central1 \
+    --allow-unauthenticated \
+    --set-env-vars GCP_PROJECT_ID=your_project_id,DRIVE_FOLDER_ID=your_drive_folder_id,API_ENDPOINT_URL=http://your_api_endpoint,SLIDES_TEMPLATE_ID=your_template_id \
+    --timeout 3600
+```
 
-### Build and Deploy Services
+- Usage
 
-1. **Build and Push Docker Images**:
-
-    ```sh
-
-    gcloud builds submit --tag gcr.io/$PROJECT_ID/lemur-broker ./lemur-broker
-    gcloud builds submit --tag gcr.io/$PROJECT_ID/lemur-generate ./lemur-generate
-    ```
-
-2. **Deploy to Cloud Run**:
-
-    ```sh
-    gcloud run deploy lemur-broker --image=gcr.io/$PROJECT_ID/lemur-broker --platform=managed --region=us-central1 --allow-unauthenticated \
-    --set-env-vars GCP_PROJECT_ID=$PROJECT_ID,DRIVE_FOLDER_ID=1Zi9ejkrvwAOTlJm4VtEJBydWKHJgN8YF,API_ENDPOINT_URL=http://34.90.192.243/deman_gen_insights,PUBSUB_TOPIC=lemur,PUBSUB_RESPONSE_TOPIC=lemur-response,PUBSUB_RESPONSE_SUBSCRIPTION=lemur-response-subscription \
-    --timeout=1800
-
-    gcloud run deploy lemur-generate --image=gcr.io/$PROJECT_ID/lemur-generate --platform=managed --region=us-central1 --allow-unauthenticated \
-    --set-env-vars GCP_PROJECT_ID=$PROJECT_ID,DRIVE_FOLDER_ID=1Zi9ejkrvwAOTlJm4VtEJBydWKHJgN8YF,PUBSUB_SUBSCRIPTION=lemur-subscription,PUBSUB_RESPONSE_TOPIC=lemur-response,SLIDES_TEMPLATE_ID=1Va_X2HGXRJSEoUJEPmO-CNqxUEoyxNj49sw_GdQeZa4 \
-    --timeout=1800
-    ```
-
-## Usage
-
-To test the service, you can send a request to `lemur-broker` using `curl`:
-
-```sh
-curl --max-time 600 -X POST "https://lemur-broker-dfrarc6doq-uc.a.run.app/generate" -H "Content-Type: application/json" -d '{"quarter_no": "Q1", "year_no" : 2024, "file_id": "22222"}'
+```shell
+curl --max-time 3600 -X POST "https://your-service-url/generate" -H "Content-Type: application/json" -d '{"file_id": "your_file_id"}'
+```
