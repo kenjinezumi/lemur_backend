@@ -21,3 +21,5 @@ EXPOSE 8080
 
 # Command to run the application
 ENTRYPOINT ["gunicorn", "--timeout", "1800", "-b", ":8080", "main:app"]
+
+#TEST
