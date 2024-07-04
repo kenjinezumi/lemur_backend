@@ -448,6 +448,14 @@ def populate_slide(slide, content, slide_number):
                     if i < len(insights_table.rows):
                         driver_text = drivers[i] if i < len(drivers) else ""
                         insight_text = insights[i] if i < len(insights) else ""
+                        if isinstance(insight_text, str):
+                            try:
+                                insight_text = json.loads(insight_text)
+                            except json.JSONDecodeError as e:
+                                logger.error(f"Error parsing insight string: {e}")
+                                insight_text = {}
+                        driver_text = insight_text.get("title", "")
+                        insight_text = insight_text.get("narrative", "")
 
                         cell = insights_table.cell(i, 0)
                         set_font(cell)
